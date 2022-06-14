@@ -1,0 +1,13 @@
+#ifndef HEADER_RTKLEADING_DEF_H_
+#define HEADER_RTKLEADING_DEF_H_
+
+// copy from TinyGPS++.cpp
+#define DEG_TO_RAD 0.017453292519943295769236907684886
+#define RAD_TO_DEG 57.295779513082320876798154814105
+#define EARTH_R 6'378'100
+
+#define radians(deg) ((deg)*DEG_TO_RAD)
+#define degrees(rad) ((rad)*RAD_TO_DEG)
+
+#endif /* HEADER_RTKLEADING_DEF_H_ */
+
