@@ -13,19 +13,35 @@ Compass::Compass():
 }
 
 void Compass::setup() {
+    while (!setupPhase1()) {
+        delay(500);
+    }
+    while (!setupPhase2()) {
+        delay(500);
+    }
+    setupPhase3();
+}
+
+bool Compass::setupPhase1() {
     // Initialize MPU6050
-    while (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G)) {
-        delay(500);
+    if (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G)) {
+        return false;
     }
+    return true;
+}
 
+bool Compass::setupPhase2() {
     // Initialize Initialize HMC5883L
-    while (!compass.begin()) {
-        delay(500);
+    if (!magnetometer.begin()) {
+        return false;
     }
+    return true;
+}
 
+void Compass::setupPhase3() {
     // Set calibration offset. See HMC5883L_calibration.ino
-    compass.setOffset(currOffX, currOffY, currOffZ);
-    compass.setScale(currScaleX, currScaleY, currScaleZ);
+    magnetometer.setOffset(currOffX, currOffY, currOffZ);
+    magnetometer.setScale(currScaleX, currScaleY, currScaleZ);
 
     mpu.setAccelOffsetX(accelOffsetX);
     mpu.setAccelOffsetY(accelOffsetY);
@@ -44,9 +60,11 @@ void Compass::setup() {
     timer = micros();
     lastTimeUpdated = RtkLeading_getCurrentTime();
     firstTimeSetup = true;
+    enabled = true;
 }
 
 void Compass::loop() {
+    enable();
     if (RtkLeading_getCurrentTime() - lastTimeUpdated > 25) {
         lastTimeUpdated = RtkLeading_getCurrentTime();
         calculate();
@@ -55,7 +73,7 @@ void Compass::loop() {
 
 void Compass::calculate() {
     // Read vectors
-    mag = compass.readNormalize();
+    mag = magnetometer.readNormalize();
 
     if (firstTimeSetup) {
         RtkLeading_log("QFIRST TIME");
@@ -285,3 +303,23 @@ void Compass::MadgwickQuaternionUpdate(float ax, float ay, float az,
     q[3] = q4 * norm;
 }
 
+void Compass::disable() {
+    if (enabled) {
+        mpu.setSleepEnabled(true);
+        magnetometer.setMeasurementMode(HMC5883L_STANDBY);
+    }
+    enabled = false;
+}
+
+void Compass::enable() {
+    if (!enabled) {
+        mpu.setSleepEnabled(false);
+        magnetometer.setMeasurementMode(HMC5883L_CONTINOUS);
+        setupPhase3();
+    }
+    enabled = true;
+}
+
+bool Compass::isEnabled() const {
+    return enabled;
+}

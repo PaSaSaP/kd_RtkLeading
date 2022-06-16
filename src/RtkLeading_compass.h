@@ -8,6 +8,9 @@ class Compass {
 public:
     Compass();
     void setup();
+    bool setupPhase1();
+    bool setupPhase2();
+    void setupPhase3();
     void loop();
     void calculate();
     Vector rotateVector(Vector v);
@@ -18,9 +21,12 @@ public:
     void MadgwickQuaternionUpdate(float ax, float ay, float az,
         float gx, float gy, float gz,
         float mx, float my, float mz, double deltat);
+    void disable();
+    void enable();
+    bool isEnabled() const;
 
 private:
-    HMC5883L compass;
+    HMC5883L magnetometer;
     MPU6050 mpu;
     uint32_t timer;
     uint32_t lastTimeUpdated;
@@ -42,6 +48,7 @@ private:
     Vector gyr;
 
     bool firstTimeSetup;
+    bool enabled;
 };
 
 extern Compass compass;
