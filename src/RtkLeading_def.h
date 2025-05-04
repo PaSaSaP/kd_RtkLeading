@@ -4,7 +4,7 @@
 // copy from TinyGPS++.cpp
 #define DEG_TO_RAD 0.017453292519943295769236907684886
 #define RAD_TO_DEG 57.295779513082320876798154814105
-#define EARTH_R 6'378'100
+#define EARTH_R 6378100
 
 #define radians(deg) ((deg)*DEG_TO_RAD)
 #define degrees(rad) ((rad)*RAD_TO_DEG)

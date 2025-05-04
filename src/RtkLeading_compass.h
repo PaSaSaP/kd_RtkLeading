@@ -11,11 +11,13 @@ public:
     bool setupPhase1();
     bool setupPhase2();
     void setupPhase3();
+    void resetOffsets();
     void loop();
     void calculate();
-    Vector rotateVector(Vector v);
+    Vector rotateMpuVector(Vector v) const; // to match MPU with HMC
+    Vector rotateVector(Vector v) const; // to rotate all vec
     float meanAngle(float angle1, float angle2);
-    float getHeading();
+    float getHeading() const;
     float tiltCompensate(Vector mag, Vector normAccel);
     float correctAngle(float heading);
     void MadgwickQuaternionUpdate(float ax, float ay, float az,
@@ -24,6 +26,14 @@ public:
     void disable();
     void enable();
     bool isEnabled() const;
+
+    Vector const& getMag() const { return mag; }
+    Vector const& getAcc() const { return acc; }
+    Vector const& getGyr() const { return gyr; }
+
+    Vector getRawMag() const { return magnetometer.getRawMag(); }
+    Vector getRawAcc() const { return rotateMpuVector(mpu.getRawAccel()); }
+    Vector getRawGyr() const { return rotateMpuVector(mpu.getRawGyro()); }
 
 private:
     HMC5883L magnetometer;

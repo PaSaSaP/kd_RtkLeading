@@ -24,7 +24,7 @@ void Compass::setup() {
 
 bool Compass::setupPhase1() {
     // Initialize MPU6050
-    if (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G)) {
+    if (!mpu.begin(MPU6050_SCALE_250DPS, MPU6050_RANGE_2G)) {
         return false;
     }
     return true;
@@ -50,7 +50,8 @@ void Compass::setupPhase3() {
     mpu.setGyroOffsetX(gyroOffsetX);
     mpu.setGyroOffsetY(gyroOffsetY);
     mpu.setGyroOffsetZ(gyroOffsetZ);
-    mpu.setManualCalibrated();
+    const float gyroThreshold = 10.f;
+    mpu.setManualCalibrated(gyroThreshold);
 
     q[0] = 1.0;
     q[1] = 0.0;
@@ -63,6 +64,11 @@ void Compass::setupPhase3() {
     enabled = true;
 }
 
+void Compass::resetOffsets() {
+    magnetometer.resetOffsets();
+    mpu.resetOffsets();
+}
+
 void Compass::loop() {
     enable();
     if (RtkLeading_getCurrentTime() - lastTimeUpdated > 25) {
@@ -73,12 +79,16 @@ void Compass::loop() {
 
 void Compass::calculate() {
     // Read vectors
-    mag = magnetometer.readNormalize();
+    mag = rotateVector(magnetometer.readNormalize());
+    if (!magnetometer.isDataValid()) {
+        RtkLeading_log("QInvalMagRead");
+        return;
+    }
 
     if (firstTimeSetup) {
         RtkLeading_log("QFIRST TIME");
 
-        acc = rotateVector(mpu.readScaledAccel());
+        acc = rotateVector(rotateMpuVector(mpu.readScaledAccel()));
 
         // Calculate heading
         float heading = tiltCompensate(mag, acc);
@@ -98,15 +108,16 @@ void Compass::calculate() {
         // heading = degrees(heading);
     }
 
-    acc = rotateVector(mpu.readNormalizeAccel());
-    gyr = rotateVector(mpu.readNormalizeGyro());
+    acc = rotateVector(rotateMpuVector(mpu.readNormalizeAccel()));
+    gyr = rotateVector(rotateMpuVector(mpu.readNormalizeGyro()));
 
     gyr.XAxis = radians(gyr.XAxis);
     gyr.YAxis = radians(gyr.YAxis);
     gyr.ZAxis = radians(gyr.ZAxis);
 
-    double dt = (double)(micros() - timer) / 1000000; // Calculate delta time
-    timer = micros();
+    auto us = micros();
+    double dt = (double)(us - timer) / 1000000; // Calculate delta time
+    timer = us;
 
     MadgwickQuaternionUpdate(acc.XAxis, acc.YAxis, acc.ZAxis,
                             gyr.XAxis, gyr.YAxis, gyr.ZAxis,
@@ -120,6 +131,7 @@ void Compass::calculate() {
     meanYaw = meanAngle(currentYaw, prevYaw);
     prevYaw = currentYaw;
 
+    // RtkLeading_log("delta="+String(dt));
     // RtkLeading_log("acc=("+String(acc.XAxis)+","+String(acc.YAxis)+","+String(acc.ZAxis)+"),gyr=("+String(gyr.XAxis)+","+String(gyr.YAxis)+","+String(gyr.ZAxis)+"),mag=("+String(mag.XAxis)+","+String(mag.YAxis)+","+String(mag.ZAxis)+"),q="+String(q[0])+","+String(q[1])+","+String(q[2])+","+String(q[3]));
     // RtkLeading_log("acc=("+String(acc.XAxis)+","+String(acc.YAxis)+","+String(acc.ZAxis)+")");
     // RtkLeading_log("gyr=("+String(gyr.XAxis)+","+String(gyr.YAxis)+","+String(gyr.ZAxis)+")");
@@ -128,13 +140,29 @@ void Compass::calculate() {
     // RtkLeading_log("===");
 }
 
-Vector Compass::rotateVector(Vector v) {
-    // accel+gyro is rotated:
+Vector Compass::rotateMpuVector(Vector v) const {
+    // accel+gyro is rotated so to match it with magnetometer so magnetometer after that is main axis system
     // acc.x = old_acc.y
     // acc.y = -old_acc.x
     auto t = v.XAxis;
     v.XAxis = v.YAxis;
     v.YAxis = -t;
+
+    return v;
+}
+
+Vector Compass::rotateVector(Vector v) const {
+    // calculations are based on axis system so magnetometer X looks backward, Y right, Z top
+    // if not then that function should fix that by rotating axis
+    // return v; // uncomment for calibration only
+
+    auto temp_x = v.XAxis;
+    auto temp_y = v.YAxis;
+    auto temp_z = v.ZAxis;
+
+    v.XAxis = -temp_z;
+    v.YAxis = -temp_x;
+    v.ZAxis = temp_y;
     return v;
 }
 
@@ -159,7 +187,8 @@ float Compass::meanAngle(float angle1, float angle2) {
     return result;
 }
 
-float Compass::getHeading() {
+float Compass::getHeading() const {
+    // idiot, heading points South, so to show North add +180
     return meanYaw;
 }
 

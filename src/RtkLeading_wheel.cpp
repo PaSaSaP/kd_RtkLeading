@@ -15,36 +15,42 @@ void Wheel::loop() {
     calculateBearing();
     distanceBetweenMidAndLine = distanceFromPoint(midPos);
     distanceBetweenCurPosAndLine = distanceFromPoint(currentPosition);
-    RtkLeading_logDouble("dist_mid", distanceBetweenMidAndLine, 3);
-    RtkLeading_logDouble("dist_cur", distanceBetweenCurPosAndLine, 3);
+    // RtkLeading_logDouble("dist_mid", distanceBetweenMidAndLine, 3);
+    // RtkLeading_logDouble("dist_cur", distanceBetweenCurPosAndLine, 3);
     // RtkLeading_log("distanceFromMid="+String(distanceBetweenMidAndLine, 3));
     // RtkLeading_log("distanceFromCur="+String(distanceBetweenCurPosAndLine, 3));
-    auto distanceDiff = distanceBetweenCurPosAndLine - distanceBetweenMidAndLine;
+    distanceDiff = distanceBetweenCurPosAndLine - distanceBetweenMidAndLine;
 
     calculatedBearing = expectedBearing;
-    auto compassHeading = compass.getHeading();
-    auto currentDiff = compassHeading - calculatedBearing;
+    auto const compassHeading = compass.getHeading();
+    compassBearing = bearingNorm(compassHeading + 180); // to make it point north
+
+    auto currentDiff = compassBearing - calculatedBearing;
     if (currentDiff < -180) {
         currentDiff += 360;
     } else if (currentDiff > 180) {
         currentDiff -= 360;
     }
 
-    auto calculatedWheelDegrees = wheelDegrees;
+    movingToSouth = false;
+    // calculatedWheelDegrees = wheelDegrees; // rotate right when moving up
     if (currentDiff < -90 || currentDiff > 90) {
-        calculatedBearing = bearingNorm(calculatedBearing + 180);
-        currentDiff = compassHeading - calculatedBearing;
-        calculatedWheelDegrees *= -1;
+        expectedBearing = bearingNorm(expectedBearing + 180);
+        calculatedBearing = expectedBearing;
+        currentDiff = compassBearing - calculatedBearing;
+        // calculatedWheelDegrees = -calculatedWheelDegrees; // rotate left when moving down
+        distanceDiff = -distanceDiff;
+        movingToSouth = true;
     }
 
     if (distanceDiff < -histeresis) {
-        // wheel into right when going up, into left when going down
-        calculatedBearing += calculatedWheelDegrees;
-        currentDiff -= calculatedWheelDegrees;
+        // wheel into right
+        calculatedBearing += wheelDegrees;
+        currentDiff -= wheelDegrees;
     } else if (distanceDiff > histeresis) {
-        // wheel into left when going up, into right when going down
-        calculatedBearing -= calculatedWheelDegrees;
-        currentDiff += calculatedWheelDegrees;
+        // wheel into left
+        calculatedBearing -= wheelDegrees;
+        currentDiff += wheelDegrees;
     } else {
     }
     if (currentDiff < -180) {
@@ -54,7 +60,7 @@ void Wheel::loop() {
     }
 
     calculatedBearing = bearingNorm(calculatedBearing);
-    RtkLeading_logDouble("comp_exp", calculatedBearing, 2);
+    // RtkLeading_logDouble("comp_exp", calculatedBearing, 2);
 
     auto newWheelValue = wheel;
     if (currentDiff < -wheelHisteresis) {
@@ -98,7 +104,7 @@ void Wheel::setStartPos(Pos const& p) {
     startPos = p;
 }
 
-Pos Wheel::getStartPos() const {
+Pos const& Wheel::getStartPos() const {
     return startPos;
 }
 
@@ -106,7 +112,7 @@ void Wheel::setEndPos(Pos const& p) {
     endPos = p;
 }
 
-Pos Wheel::getEndPos() const {
+Pos const& Wheel::getEndPos() const {
     return endPos;
 }
 
@@ -114,13 +120,13 @@ void Wheel::setMidPos(Pos const& p) {
     midPos = p;
 }
 
-Pos Wheel::getMidPos() const {
+Pos const& Wheel::getMidPos() const {
     return midPos;
 }
 
 void Wheel::moveMidBy(double m) {
-    auto bearing = TinyGPSPlus::courseTo(startPos.lat, startPos.lon, endPos.lat, endPos.lon);  // clockwise from north
-    bearing += 90;
+    auto bearing = expectedBearing;  // clockwise from north
+    bearing += movingToSouth? -90: 90;
     m /= EARTH_R; // divide by Earths R
 
     Pos p = midPos;
